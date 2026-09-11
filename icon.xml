@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher-Icon fuer IntervalTimer: eine Stoppuhr, deren Ring in zwei
+     Haelften geteilt ist - warmes Orange fuer die Arbeitsphase, Petrol fuer
+     die Erholungsphase. 108x108, Motiv innerhalb von Radius 31 um die
+     Mitte (54,54), damit nichts von der runden Launcher-Maske abgeschnitten
+     wird. Der Zeiger ist dunkel statt hintergrundfarben, damit er auch bei
+     einer anderen IconBackground-Farbe erkennbar bleibt. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Kronen-Steg oben (12-Uhr-Position) -->
+    <path android:fillColor="#2B3542"
+        android:pathData="M50,19 h8 a4,4 0 0 1 4,4 a4,4 0 0 1 -4,4 h-8 a4,4 0 0 1 -4,-4 a4,4 0 0 1 4,-4 z" />
+
+    <!-- Arbeits-Bogen (obere/rechte Haelfte des Rings) -->
+    <path android:fillColor="#E4652B"
+        android:pathData="M54,23 a31,31 0 0 1 31,31 a31,31 0 0 1 -14.5,26.3 l-4.3,-7.1 a22.6,22.6 0 0 0 10.6,-19.2 a22.6,22.6 0 0 0 -22.6,-22.6 z" />
+
+    <!-- Erholungs-Bogen (untere/linke Haelfte des Rings) -->
+    <path android:fillColor="#2E9C93"
+        android:pathData="M54,23 a31,31 0 0 0 -31,31 a31,31 0 0 0 14.5,26.3 l4.3,-7.1 a22.6,22.6 0 0 1 -10.6,-19.2 a22.6,22.6 0 0 1 22.6,-22.6 z" />
+
+    <!-- Zifferblatt-Innenflaeche -->
+    <path android:fillColor="#1D2530"
+        android:pathData="M54,31.4 a22.6,22.6 0 1,0 0.1,0 z" />
+
+    <!-- Zeiger, zeigt in die Arbeitsphase -->
+    <path android:fillColor="#F2C879"
+        android:pathData="M54,54 l14,-16.4 a22.6,22.6 0 0 1 4.9,26.7 z" />
+
+    <!-- Mittelpunkt -->
+    <path android:fillColor="#F2C879"
+        android:pathData="M54,50.5 a3.5,3.5 0 1,0 0.1,0 z" />
+</vector>

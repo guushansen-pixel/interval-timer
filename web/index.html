@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>IntervalTimer</title>
+<style>
+  :root {
+    --bg: #1D2530;
+    --fg: #F4F6F8;
+    --fg-dim: #9AA6B2;
+    --accent: #E4652B;
+    --accent2: #2E9C93;
+    --card-bg: #2A3441;
+    --card-bg-hover: #33404F;
+    --danger: #C4453A;
+    --ok: #3EA66B;
+    --border: #3A4656;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  #app { height: 100%; display: flex; flex-direction: column; }
+  .screen {
+    display: none; flex-direction: column; height: 100%; overflow-y: auto;
+    padding: 20px;
+    padding-top: calc(40px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  .screen.active { display: flex; }
+
+  h1 { font-size: 1.6em; margin: 0 0 4px; }
+  h2 { font-size: 1.3em; margin: 0 0 12px; }
+  .subtitle { color: var(--fg-dim); margin: 0 0 20px; font-size: 0.95em; }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .top-row { margin-bottom: 16px; }
+  .icon-btn {
+    background: var(--card-bg); border: 1px solid var(--border); color: var(--fg);
+    border-radius: 10px; padding: 10px 14px; font-size: 1em; cursor: pointer;
+  }
+  .icon-btn:active { background: var(--card-bg-hover); }
+
+  .card-list { display: flex; flex-direction: column; gap: 12px; flex: 1; overflow-y: auto; }
+  .program-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; text-align: left; color: var(--fg); cursor: pointer;
+  }
+  .program-card:active { background: var(--card-bg-hover); }
+  .program-card.disabled { opacity: 0.5; cursor: default; }
+  .program-card .name { font-size: 1.15em; font-weight: 600; margin-bottom: 4px; }
+  .program-card .desc { color: var(--fg-dim); font-size: 0.9em; margin-bottom: 6px; }
+  .program-card .meta { color: var(--accent2); font-size: 0.85em; }
+
+  .bottom-nav { display: flex; gap: 10px; margin-top: 16px; }
+  .bottom-nav button { flex: 1; }
+
+  button.primary {
+    background: var(--accent); color: #1D2530; border: none; border-radius: 12px;
+    font-size: 1.1em; font-weight: 700; padding: 16px; cursor: pointer;
+  }
+  button.primary:active { filter: brightness(0.9); }
+  button.secondary {
+    background: transparent; color: var(--fg); border: 1px solid var(--border);
+    border-radius: 12px; font-size: 1em; padding: 14px; cursor: pointer;
+  }
+  button.secondary:active { background: var(--card-bg); }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+
+  .setting-block { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .setting-label { font-size: 0.95em; margin-bottom: 10px; color: var(--fg-dim); }
+  .stepper { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .stepper button {
+    width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font-size: 1.4em; cursor: pointer; line-height: 1;
+  }
+  .stepper button:active { background: var(--card-bg-hover); }
+  .stepper .value { font-size: 1.3em; font-weight: 700; min-width: 90px; text-align: center; }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+  .switch { position: relative; width: 50px; height: 28px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider {
+    position: absolute; inset: 0; background: var(--border); border-radius: 28px; cursor: pointer; transition: 0.15s;
+  }
+  .switch .slider::before {
+    content: ""; position: absolute; height: 22px; width: 22px; left: 3px; top: 3px;
+    background: var(--fg); border-radius: 50%; transition: 0.15s;
+  }
+  .switch input:checked + .slider { background: var(--accent2); }
+  .switch input:checked + .slider::before { transform: translateX(22px); }
+
+  input[type="range"] { width: 100%; }
+  select {
+    background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px; font-size: 1em;
+  }
+
+  /* --- Running screen --- */
+  #screen-running { padding: 0; position: relative; transition: background-color 0.4s ease; }
+  .phase-ready    { background: #2B3542; }
+  .phase-warmup   { background: #2E5C6E; }
+  .phase-work     { background: #B23A22; }
+  .phase-recovery { background: #1F6E63; }
+  .phase-cooldown { background: #2E5C6E; }
+  .phase-done     { background: #2E7D4F; }
+
+  .running-inner {
+    flex: 1; display: flex; flex-direction: column; touch-action: none;
+    padding: 20px;
+    padding-top: calc(40px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .running-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .running-top button { background: rgba(0,0,0,0.25); color: var(--fg); border: none; border-radius: 10px; padding: 10px 14px; font-size: 0.95em; }
+  .round-indicator { font-size: 1.1em; color: rgba(255,255,255,0.85); }
+
+  .running-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .phase-label { font-size: 1.4em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .clock { font-size: 5.5em; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .guidance-text { margin-top: 14px; color: rgba(255,255,255,0.85); font-size: 1.05em; max-width: 320px; }
+
+  .progress-bar { height: 6px; width: 100%; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; margin-top: 20px; }
+  .progress-bar .fill { height: 100%; background: rgba(255,255,255,0.85); width: 0%; transition: width 0.2s linear; }
+
+  .running-controls { display: flex; align-items: center; justify-content: center; gap: 20px; padding-bottom: 10px; }
+  .ctrl-btn { background: rgba(0,0,0,0.25); color: var(--fg); border: none; border-radius: 14px; padding: 14px 18px; font-size: 1em; cursor: pointer; }
+  .ctrl-btn:active { background: rgba(0,0,0,0.4); }
+  .ctrl-btn.pause-resume { padding: 20px 34px; font-size: 1.2em; font-weight: 700; border-radius: 50px; background: rgba(255,255,255,0.15); }
+
+  .flash-overlay {
+    position: absolute; inset: 0; background: white; opacity: 0; pointer-events: none;
+  }
+  .flash-overlay.flashing { animation: flashPulse 0.35s ease-out; }
+  @keyframes flashPulse { 0% { opacity: 0.55; } 100% { opacity: 0; } }
+
+  .countdown-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 9em; font-weight: 800; color: rgba(255,255,255,0.9); pointer-events: none; opacity: 0;
+  }
+  .countdown-overlay.show { animation: countdownPulse 0.9s ease-out; }
+  @keyframes countdownPulse { 0% { opacity: 0.9; transform: scale(1.3); } 100% { opacity: 0; transform: scale(1); } }
+
+  .history-total { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; text-align: center; }
+  .history-total .num { font-size: 2em; font-weight: 800; color: var(--accent2); }
+  .history-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .history-item { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .history-item .row1 { display: flex; justify-content: space-between; font-weight: 600; }
+  .history-item .row2 { display: flex; justify-content: space-between; color: var(--fg-dim); font-size: 0.85em; margin-top: 4px; }
+  .history-item.partial .row1 .name::after { content: " (abgebrochen)"; color: var(--danger); font-weight: 400; font-size: 0.8em; }
+  .empty-hint { color: var(--fg-dim); text-align: center; margin-top: 40px; }
+
+  #screen-complete { align-items: center; justify-content: center; text-align: center; }
+  #screen-complete .big { font-size: 2em; margin-bottom: 10px; }
+  #screen-complete .num { font-size: 2.6em; font-weight: 800; color: var(--accent2); margin: 16px 0; }
+
+  .confirm-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none;
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  .confirm-backdrop.active { display: flex; }
+  .confirm-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 22px; width: 85%; max-width: 340px; }
+  .confirm-box p { margin: 0 0 18px; }
+  .confirm-box .buttons { display: flex; gap: 10px; }
+  .confirm-box .buttons button { flex: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Home -->
+  <div id="screen-home" class="screen active">
+    <h1>IntervalTimer</h1>
+    <p class="subtitle">Intervalltraining fürs Rad</p>
+    <div class="card-list" id="program-list"></div>
+    <div class="bottom-nav">
+      <button class="icon-btn" id="btn-open-settings">Einstellungen</button>
+      <button class="icon-btn" id="btn-open-history">Verlauf</button>
+    </div>
+  </div>
+
+  <!-- Setup -->
+  <div id="screen-setup" class="screen">
+    <h2 id="setup-title"></h2>
+    <p class="subtitle" id="setup-desc"></p>
+    <div id="setup-fields"></div>
+    <p class="subtitle" id="setup-total"></p>
+    <div style="flex:1"></div>
+    <button class="primary" id="btn-start-session">Start</button>
+    <div style="height:10px"></div>
+    <button class="secondary" id="btn-setup-back">Zurück</button>
+  </div>
+
+  <!-- Running -->
+  <div id="screen-running" class="screen phase-ready">
+    <div class="flash-overlay" id="flash-overlay"></div>
+    <div class="countdown-overlay" id="countdown-overlay"></div>
+    <div class="running-inner">
+      <div class="running-top">
+        <button id="btn-cancel-session">✕ Abbrechen</button>
+        <span class="round-indicator" id="round-indicator"></span>
+      </div>
+      <div class="running-center">
+        <div class="phase-label" id="phase-label">Bereit</div>
+        <div class="clock" id="clock">0:00</div>
+        <div class="guidance-text" id="guidance-text"></div>
+        <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+      </div>
+      <div class="running-controls">
+        <button class="ctrl-btn" id="btn-back-phase">◂ Zurück</button>
+        <button class="ctrl-btn pause-resume" id="btn-pause-resume">Pause</button>
+        <button class="ctrl-btn" id="btn-skip-phase">Weiter ▸</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="screen-settings" class="screen">
+    <h2>Einstellungen</h2>
+    <div class="setting-block">
+      <div class="toggle-row">
+        <span>Ton</span>
+        <label class="switch"><input type="checkbox" id="toggle-sound"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Vibration</span>
+        <label class="switch"><input type="checkbox" id="toggle-vibration"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Bildschirm-Flash</span>
+        <label class="switch"><input type="checkbox" id="toggle-flash"><span class="slider"></span></label>
+      </div>
+    </div>
+    <div class="setting-block">
+      <div class="setting-label">Lautstärke</div>
+      <input type="range" id="range-volume" min="0" max="2" step="0.05">
+    </div>
+    <div class="setting-block">
+      <div class="setting-label">Vibrationsintensität</div>
+      <select id="select-vibration-intensity">
+        <option value="short">Kurz</option>
+        <option value="medium">Mittel</option>
+        <option value="long">Lang</option>
+      </select>
+    </div>
+    <div class="setting-block">
+      <div class="setting-label">Standard Aufwärmen</div>
+      <div class="stepper">
+        <button data-step="warmupSec" data-dir="-1">−</button>
+        <span class="value" id="value-warmup">5 Min</span>
+        <button data-step="warmupSec" data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="setting-block">
+      <div class="setting-label">Standard Abwärmen</div>
+      <div class="stepper">
+        <button data-step="cooldownSec" data-dir="-1">−</button>
+        <span class="value" id="value-cooldown">5 Min</span>
+        <button data-step="cooldownSec" data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="setting-block">
+      <div class="setting-label">HIIT 30/30 – Runden</div>
+      <div class="stepper">
+        <button data-step="hiitRounds" data-dir="-1">−</button>
+        <span class="value" id="value-hiitrounds">10</span>
+        <button data-step="hiitRounds" data-dir="1">+</button>
+      </div>
+    </div>
+    <button class="secondary danger" id="btn-clear-history">Verlauf löschen</button>
+    <div style="height:10px"></div>
+    <button class="secondary" id="btn-settings-back">Zurück</button>
+  </div>
+
+  <!-- History -->
+  <div id="screen-history" class="screen">
+    <h2>Verlauf</h2>
+    <div class="history-total">
+      <div class="num" id="history-total-num">0 Min</div>
+      <div>Gesamte Trainingszeit</div>
+    </div>
+    <div class="history-list" id="history-list"></div>
+    <div style="height:10px"></div>
+    <button class="secondary" id="btn-history-back">Zurück</button>
+  </div>
+
+  <!-- Complete -->
+  <div id="screen-complete" class="screen">
+    <div class="big">Fertig! 🎉</div>
+    <div id="complete-program"></div>
+    <div class="num" id="complete-duration"></div>
+    <button class="primary" id="btn-complete-done">Zum Start</button>
+  </div>
+
+</div>
+
+<div class="confirm-backdrop" id="confirm-backdrop">
+  <div class="confirm-box">
+    <p id="confirm-text">Wirklich?</p>
+    <div class="buttons">
+      <button class="secondary" id="confirm-no">Abbrechen</button>
+      <button class="secondary danger" id="confirm-yes">Ja</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var FAST = new URLSearchParams(location.search).get('fast') ? 20 : 1;
+
+  // ---------- Persistence ----------
+  function loadJSON(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    } catch (e) { return fallback; }
+  }
+  function saveJSON(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+  }
+
+  var DEFAULT_SETTINGS = {
+    warmupSec: 300, cooldownSec: 300, hiitRounds: 10,
+    soundOn: true, vibrationOn: true, flashOn: true,
+    volume: 1.4, vibrationIntensity: "medium"
+  };
+  var settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON('it_settings_v1', {}));
+  var sessions = loadJSON('it_sessions_v1', []);
+  // Reserviert fuer Stage 2 (Custom-Programme) - heute nur gelesen, nie geschrieben.
+  function loadCustomPrograms() { return loadJSON('it_custom_programs_v1', []); }
+
+  function persistSettings() { saveJSON('it_settings_v1', settings); }
+  function persistSessions() { saveJSON('it_sessions_v1', sessions); }
+
+  // ---------- Program data model ----------
+  var PRESETS = [
+    {
+      id: "norwegian-4x4", name: "Norwegian 4x4", type: "preset",
+      description: "4× 4 Min hart / 3 Min locker",
+      config: { rounds: 4, workSec: 240, restSec: 180, restAfterLast: false },
+      adjustable: ["warmupSec", "cooldownSec"],
+      guidance: {
+        warmup: "Locker einrollen, Tempo langsam steigern",
+        work: "Hart! ~85–95% HFmax",
+        recovery: "Lockeres Ausrollen, Beine leicht drehen",
+        cooldown: "Ganz locker austreten, Puls runterfahren"
+      }
+    },
+    {
+      id: "hiit-30-30", name: "HIIT 30/30", type: "preset",
+      description: "30 Sek hart / 30 Sek locker",
+      config: { workSec: 30, restSec: 30, restAfterLast: false },
+      adjustable: ["warmupSec", "cooldownSec", "rounds"],
+      guidance: {
+        warmup: "Locker einrollen, Tempo langsam steigern",
+        work: "Vollgas!",
+        recovery: "Lockeres Austreten",
+        cooldown: "Ganz locker austreten, Puls runterfahren"
+      }
+    }
+  ];
+
+  function getAllPrograms() { return PRESETS.concat(loadCustomPrograms()); }
+  function getProgramById(id) { return getAllPrograms().filter(function (p) { return p.id === id; })[0]; }
+
+  function resolveConfig(program) {
+    var rounds = program.id === "hiit-30-30" ? settings.hiitRounds : program.config.rounds;
+    return Object.assign({}, program.config, {
+      warmupSec: settings.warmupSec,
+      cooldownSec: settings.cooldownSec,
+      rounds: rounds
+    });
+  }
+
+  // buildPhases ist generisch: bedient Presets heute genauso wie
+  // Stage-2-Custom-Programme spaeter, ohne Programm-spezifische Verzweigung.
+  function buildPhases(program) {
+    var cfg = resolveConfig(program);
+    var g = program.guidance;
+    var phases = [];
+    function push(kind, durationSec, label, guidanceText, cueProfile, roundIndex) {
+      phases.push({
+        kind: kind,
+        durationSec: Math.max(1, Math.round(durationSec / FAST)),
+        label: label, guidanceText: guidanceText || "", cueProfile: cueProfile,
+        roundIndex: roundIndex || null, totalRounds: roundIndex ? cfg.rounds : null
+      });
+    }
+    push("ready", 3, "Bereit", "", "neutral");
+    if (cfg.warmupSec > 0) push("warmup", cfg.warmupSec, "Aufwärmen", g.warmup, "recover");
+    for (var i = 1; i <= cfg.rounds; i++) {
+      push("work", cfg.workSec, "Arbeit", g.work, "go", i);
+      var isLast = i === cfg.rounds;
+      if (!isLast || cfg.restAfterLast) push("recovery", cfg.restSec, "Erholung", g.recovery, "recover", i);
+    }
+    if (cfg.cooldownSec > 0) push("cooldown", cfg.cooldownSec, "Abwärmen", g.cooldown, "recover");
+    phases.push({ kind: "done", durationSec: 0, label: "Fertig", guidanceText: "", cueProfile: "done", roundIndex: null, totalRounds: null });
+    return phases;
+  }
+
+  function totalDurationSec(program) {
+    return buildPhases(program).reduce(function (sum, p) { return sum + p.durationSec; }, 0);
+  }
+
+  // ---------- Formatting ----------
+  function formatClock(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ":" + String(s).padStart(2, "0");
+  }
+  function formatDurationLong(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    if (h > 0) return h + " Std " + m + " Min";
+    return m + " Min";
+  }
+  function formatDateTime(epochMs) {
+    var d = new Date(epochMs);
+    return d.toLocaleDateString('de-DE') + ", " + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ---------- Audio ----------
+  var audioCtx = null, masterGain = null;
+  function audioInit() {
+    if (audioCtx) { if (audioCtx.state === 'suspended') audioCtx.resume(); return; }
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = settings.volume;
+      masterGain.connect(audioCtx.destination);
+    } catch (e) {}
+  }
+  function tone(f0, f1, dur, type) {
+    if (!audioCtx || !settings.soundOn) return;
+    try {
+      var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = type || 'sine';
+      var now = audioCtx.currentTime;
+      osc.frequency.setValueAtTime(f0, now);
+      if (f1 && f1 !== f0) osc.frequency.linearRampToValueAtTime(f1, now + dur);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(1, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      osc.connect(gain); gain.connect(masterGain);
+      osc.start(now); osc.stop(now + dur + 0.05);
+    } catch (e) {}
+  }
+  function cueGo() { tone(440, 880, 0.35, 'square'); }
+  function cueRecover() { tone(392, 262, 0.4, 'sine'); }
+  function cueCountdownTick() { tone(880, 880, 0.08, 'sine'); }
+  function cueDone() { tone(660, 220, 0.9, 'sine'); }
+  function cueNeutral() {}
+
+  // ---------- Vibration ----------
+  // Die Vibration API kennt auf Android keine Amplitude, nur Muster/Dauer -
+  // "staerker" heisst hier: deutlich laenger UND mehrere Pulse statt einem
+  // einzelnen kurzen Buzz, weil ein Motor beim Wiederanlaufen staerker
+  // wahrgenommen wird als im eingeschwungenen Zustand.
+  function vibScale() { return { short: 1, medium: 2, long: 3.5 }[settings.vibrationIntensity] || 2; }
+  function vibrate(pattern) {
+    if (!settings.vibrationOn) return;
+    if (!('vibrate' in navigator)) return;
+    try { navigator.vibrate(pattern.map(function (ms) { return Math.round(ms * vibScale()); })); } catch (e) {}
+  }
+  var VIB = {
+    go: [500, 150, 500],
+    recover: [300, 120, 300],
+    neutral: [],
+    done: [400, 150, 400, 150, 400, 150, 800],
+    tick: [180]
+  };
+
+  // ---------- Wake Lock ----------
+  var wakeLock = null;
+  function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function (wl) { wakeLock = wl; }).catch(function () {});
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && state.screen === 'running' && !state.sessionEnded) {
+      requestWakeLock();
+    }
+  });
+
+  // ---------- Flash / countdown overlay ----------
+  function flashPulse() {
+    if (!settings.flashOn) return;
+    var el = document.getElementById('flash-overlay');
+    el.classList.remove('flashing'); void el.offsetWidth; el.classList.add('flashing');
+  }
+  function showCountdownNumber(n) {
+    var el = document.getElementById('countdown-overlay');
+    el.textContent = String(n);
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  }
+
+  // ---------- Confirm dialog ----------
+  function confirmDialog(text, onYes) {
+    var backdrop = document.getElementById('confirm-backdrop');
+    document.getElementById('confirm-text').textContent = text;
+    backdrop.classList.add('active');
+    function cleanup() { backdrop.classList.remove('active'); yesBtn.onclick = null; noBtn.onclick = null; }
+    var yesBtn = document.getElementById('confirm-yes'), noBtn = document.getElementById('confirm-no');
+    yesBtn.onclick = function () { cleanup(); onYes(); };
+    noBtn.onclick = function () { cleanup(); };
+  }
+
+  // ---------- App state ----------
+  var state = {
+    screen: 'home',
+    selectedProgramId: null,
+    // running session
+    program: null, phases: null, cumulativeMs: null,
+    sessionStartEpoch: 0, pausedAccumMs: 0, manualOffsetMs: 0,
+    paused: false, pauseStartedAt: 0, frozenElapsedMs: 0,
+    currentPhaseIndex: -1, sessionEnded: false,
+    lastCountdownSecondFired: null,
+    tickTimer: null
+  };
+
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(function (el) { el.classList.remove('active'); });
+    document.getElementById('screen-' + name).classList.add('active');
+    state.screen = name;
+  }
+
+  // ---------- Home ----------
+  function renderHome() {
+    var list = document.getElementById('program-list');
+    list.innerHTML = '';
+    getAllPrograms().forEach(function (p) {
+      var card = document.createElement('div');
+      card.className = 'program-card';
+      card.innerHTML =
+        '<div class="name">' + p.name + '</div>' +
+        '<div class="desc">' + p.description + '</div>' +
+        '<div class="meta">Gesamtdauer ca. ' + formatDurationLong(totalDurationSec(p)) + '</div>';
+      card.addEventListener('click', function () { openSetup(p.id); });
+      list.appendChild(card);
+    });
+    var placeholder = document.createElement('div');
+    placeholder.className = 'program-card disabled';
+    placeholder.innerHTML = '<div class="name">+ Eigenes Programm</div><div class="desc">Bald verfügbar</div>';
+    list.appendChild(placeholder);
+  }
+
+  // ---------- Setup ----------
+  var SETUP_FIELD_META = {
+    warmupSec: { label: 'Aufwärmen', unit: 'Min', step: 60, min: 0, max: 1200, display: function (v) { return Math.round(v / 60) + ' Min'; } },
+    cooldownSec: { label: 'Abwärmen', unit: 'Min', step: 60, min: 0, max: 1200, display: function (v) { return Math.round(v / 60) + ' Min'; } },
+    rounds: { label: 'Runden', unit: '', step: 1, min: 1, max: 30, display: function (v) { return String(v); } }
+  };
+
+  function settingsKeyFor(field) { return field === 'rounds' ? 'hiitRounds' : field; }
+
+  function openSetup(programId) {
+    state.selectedProgramId = programId;
+    var program = getProgramById(programId);
+    document.getElementById('setup-title').textContent = program.name;
+    document.getElementById('setup-desc').textContent = program.description;
+    renderSetupFields(program);
+    showScreen('setup');
+  }
+
+  function renderSetupFields(program) {
+    var container = document.getElementById('setup-fields');
+    container.innerHTML = '';
+    program.adjustable.forEach(function (field) {
+      var meta = SETUP_FIELD_META[field];
+      var settingsKey = settingsKeyFor(field);
+      var block = document.createElement('div');
+      block.className = 'setting-block';
+      block.innerHTML =
+        '<div class="setting-label">' + meta.label + '</div>' +
+        '<div class="stepper">' +
+        '<button data-field="' + field + '" data-dir="-1">−</button>' +
+        '<span class="value" data-field-value="' + field + '">' + meta.display(settings[settingsKey]) + '</span>' +
+        '<button data-field="' + field + '" data-dir="1">+</button>' +
+        '</div>';
+      container.appendChild(block);
+    });
+    container.querySelectorAll('button[data-field]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var field = btn.getAttribute('data-field');
+        var dir = parseInt(btn.getAttribute('data-dir'), 10);
+        var meta = SETUP_FIELD_META[field];
+        var settingsKey = settingsKeyFor(field);
+        var next = settings[settingsKey] + dir * meta.step;
+        next = Math.max(meta.min, Math.min(meta.max, next));
+        settings[settingsKey] = next;
+        persistSettings();
+        container.querySelector('[data-field-value="' + field + '"]').textContent = meta.display(next);
+        document.getElementById('setup-total').textContent =
+          'Gesamtdauer ca. ' + formatDurationLong(totalDurationSec(program));
+      });
+    });
+    document.getElementById('setup-total').textContent =
+      'Gesamtdauer ca. ' + formatDurationLong(totalDurationSec(program));
+  }
+
+  // ---------- Timer engine ----------
+  function startSession() {
+    var program = getProgramById(state.selectedProgramId);
+    var phases = buildPhases(program);
+    var cumulativeMs = [0];
+    phases.forEach(function (p) { cumulativeMs.push(cumulativeMs[cumulativeMs.length - 1] + p.durationSec * 1000); });
+
+    audioInit();
+    requestWakeLock();
+
+    state.program = program;
+    state.phases = phases;
+    state.cumulativeMs = cumulativeMs;
+    state.sessionStartEpoch = Date.now();
+    state.pausedAccumMs = 0;
+    state.manualOffsetMs = 0;
+    state.paused = false;
+    state.currentPhaseIndex = -1;
+    state.sessionEnded = false;
+    state.lastCountdownSecondFired = null;
+
+    showScreen('running');
+    if (state.tickTimer) clearInterval(state.tickTimer);
+    state.tickTimer = setInterval(tick, 250);
+    tick();
+  }
+
+  function currentElapsedMs() {
+    return Date.now() - state.sessionStartEpoch - state.pausedAccumMs - state.manualOffsetMs;
+  }
+
+  function jumpElapsedTo(targetMs) {
+    var now = currentElapsedMs();
+    state.manualOffsetMs += (now - targetMs);
+  }
+
+  function tick() {
+    if (state.sessionEnded) return;
+    if (state.paused) { renderRunning(state.currentPhaseIndex, state.frozenElapsedMs); return; }
+
+    var elapsedMs = currentElapsedMs();
+    var idx = state.currentPhaseIndex < 0 ? 0 : state.currentPhaseIndex;
+    var lastIdx = state.phases.length - 1;
+    while (idx < lastIdx && elapsedMs >= state.cumulativeMs[idx + 1]) idx++;
+
+    if (idx !== state.currentPhaseIndex) {
+      state.currentPhaseIndex = idx;
+      state.lastCountdownSecondFired = null;
+      fireCue(state.phases[idx].cueProfile);
+    }
+
+    var phase = state.phases[idx];
+    var remainingMs = state.cumulativeMs[idx + 1] - elapsedMs;
+    if (idx === lastIdx) remainingMs = 0;
+
+    var remainingSec = Math.ceil(remainingMs / 1000);
+    if (phase.durationSec > 3 && remainingSec <= 3 && remainingSec >= 1 && remainingSec !== state.lastCountdownSecondFired) {
+      state.lastCountdownSecondFired = remainingSec;
+      cueCountdownTick();
+      vibrate(VIB.tick);
+      showCountdownNumber(remainingSec);
+    }
+
+    renderRunning(idx, elapsedMs);
+
+    if (idx === lastIdx) {
+      completeSession(true);
+    }
+  }
+
+  function fireCue(profile) {
+    if (profile === 'go') { cueGo(); vibrate(VIB.go); flashPulse(); }
+    else if (profile === 'recover') { cueRecover(); vibrate(VIB.recover); flashPulse(); }
+    else if (profile === 'done') { cueDone(); vibrate(VIB.done); flashPulse(); }
+  }
+
+  function renderRunning(idx, elapsedMs) {
+    var phase = state.phases[idx];
+    var screen = document.getElementById('screen-running');
+    screen.className = 'screen active phase-' + phase.kind;
+
+    document.getElementById('phase-label').textContent = phase.label;
+    document.getElementById('guidance-text').textContent = phase.guidanceText;
+    document.getElementById('round-indicator').textContent =
+      phase.roundIndex ? ('Runde ' + phase.roundIndex + '/' + phase.totalRounds) : '';
+
+    var phaseStartMs = state.cumulativeMs[idx];
+    var phaseEndMs = idx === state.phases.length - 1 ? phaseStartMs : state.cumulativeMs[idx + 1];
+    var remainingMs = Math.max(0, phaseEndMs - elapsedMs);
+    var remainingSec = Math.ceil(remainingMs / 1000);
+    document.getElementById('clock').textContent = formatClock(remainingSec);
+
+    var total = phase.durationSec || 1;
+    var doneFrac = phase.durationSec > 0 ? 1 - (remainingMs / 1000) / total : 1;
+    document.getElementById('progress-fill').style.width = (Math.max(0, Math.min(1, doneFrac)) * 100) + '%';
+
+    document.getElementById('btn-pause-resume').textContent = state.paused ? 'Weiter' : 'Pause';
+  }
+
+  function pauseSession() {
+    if (state.paused || state.sessionEnded) return;
+    state.frozenElapsedMs = currentElapsedMs();
+    state.pauseStartedAt = Date.now();
+    state.paused = true;
+    renderRunning(state.currentPhaseIndex, state.frozenElapsedMs);
+  }
+  function resumeSession() {
+    if (!state.paused) return;
+    state.pausedAccumMs += (Date.now() - state.pauseStartedAt);
+    state.paused = false;
+  }
+  function togglePause() { if (state.paused) resumeSession(); else pauseSession(); }
+
+  function skipPhase() {
+    if (state.sessionEnded) return;
+    var idx = state.currentPhaseIndex;
+    if (idx >= state.phases.length - 1) return;
+    jumpElapsedTo(state.cumulativeMs[idx + 1]);
+    tick();
+  }
+  function backPhase() {
+    if (state.sessionEnded) return;
+    var idx = state.currentPhaseIndex;
+    var targetIdx = Math.max(0, idx - 1);
+    jumpElapsedTo(state.cumulativeMs[targetIdx]);
+    state.currentPhaseIndex = targetIdx - 1 < 0 ? -1 : targetIdx - 1; // erzwingt Neu-Erkennung der Phase in tick()
+    tick();
+  }
+
+  function completeSession(fully) {
+    if (state.sessionEnded) return;
+    state.sessionEnded = true;
+    clearInterval(state.tickTimer);
+    releaseWakeLock();
+
+    var durationSec = Math.round(currentElapsedMs() / 1000);
+    sessions.push({
+      id: 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      programId: state.program.id,
+      programName: state.program.name,
+      startedAt: state.sessionStartEpoch,
+      durationSec: durationSec,
+      completedFully: !!fully
+    });
+    persistSessions();
+
+    if (fully) {
+      document.getElementById('complete-program').textContent = state.program.name;
+      document.getElementById('complete-duration').textContent = formatDurationLong(durationSec);
+      showScreen('complete');
+    } else {
+      showScreen('home');
+      renderHome();
+    }
+  }
+
+  function cancelSession() {
+    confirmDialog('Training wirklich abbrechen? Der bisherige Fortschritt wird als abgebrochen gespeichert.', function () {
+      completeSession(false);
+    });
+  }
+
+  // ---------- Settings screen ----------
+  function renderSettings() {
+    document.getElementById('toggle-sound').checked = settings.soundOn;
+    document.getElementById('toggle-vibration').checked = settings.vibrationOn;
+    document.getElementById('toggle-flash').checked = settings.flashOn;
+    document.getElementById('range-volume').value = settings.volume;
+    document.getElementById('select-vibration-intensity').value = settings.vibrationIntensity;
+    document.getElementById('value-warmup').textContent = Math.round(settings.warmupSec / 60) + ' Min';
+    document.getElementById('value-cooldown').textContent = Math.round(settings.cooldownSec / 60) + ' Min';
+    document.getElementById('value-hiitrounds').textContent = String(settings.hiitRounds);
+  }
+
+  document.getElementById('toggle-sound').addEventListener('change', function (e) { settings.soundOn = e.target.checked; persistSettings(); });
+  document.getElementById('toggle-vibration').addEventListener('change', function (e) { settings.vibrationOn = e.target.checked; persistSettings(); });
+  document.getElementById('toggle-flash').addEventListener('change', function (e) { settings.flashOn = e.target.checked; persistSettings(); });
+  document.getElementById('range-volume').addEventListener('input', function (e) {
+    settings.volume = parseFloat(e.target.value); persistSettings();
+    if (masterGain) masterGain.gain.value = settings.volume;
+  });
+  document.getElementById('select-vibration-intensity').addEventListener('change', function (e) {
+    settings.vibrationIntensity = e.target.value; persistSettings();
+  });
+
+  var SETTINGS_STEPPER_META = {
+    warmupSec: { step: 60, min: 0, max: 1200 },
+    cooldownSec: { step: 60, min: 0, max: 1200 },
+    hiitRounds: { step: 1, min: 1, max: 30 }
+  };
+  document.querySelectorAll('#screen-settings button[data-step]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.getAttribute('data-step');
+      var dir = parseInt(btn.getAttribute('data-dir'), 10);
+      var meta = SETTINGS_STEPPER_META[key];
+      settings[key] = Math.max(meta.min, Math.min(meta.max, settings[key] + dir * meta.step));
+      persistSettings();
+      renderSettings();
+    });
+  });
+
+  document.getElementById('btn-clear-history').addEventListener('click', function () {
+    confirmDialog('Gesamten Trainingsverlauf löschen?', function () {
+      sessions = []; persistSessions(); renderHistory();
+    });
+  });
+
+  // ---------- History screen ----------
+  function renderHistory() {
+    var totalSec = sessions.reduce(function (sum, s) { return sum + s.durationSec; }, 0);
+    document.getElementById('history-total-num').textContent = formatDurationLong(totalSec);
+    var list = document.getElementById('history-list');
+    list.innerHTML = '';
+    if (sessions.length === 0) {
+      list.innerHTML = '<div class="empty-hint">Noch keine Trainings aufgezeichnet.</div>';
+      return;
+    }
+    sessions.slice().reverse().forEach(function (s) {
+      var item = document.createElement('div');
+      item.className = 'history-item' + (s.completedFully ? '' : ' partial');
+      item.innerHTML =
+        '<div class="row1"><span class="name">' + s.programName + '</span><span>' + formatClock(s.durationSec) + '</span></div>' +
+        '<div class="row2"><span>' + formatDateTime(s.startedAt) + '</span></div>';
+      list.appendChild(item);
+    });
+  }
+
+  // ---------- Navigation wiring ----------
+  document.getElementById('btn-open-settings').addEventListener('click', function () { renderSettings(); showScreen('settings'); });
+  document.getElementById('btn-open-history').addEventListener('click', function () { renderHistory(); showScreen('history'); });
+  document.getElementById('btn-settings-back').addEventListener('click', function () { showScreen('home'); renderHome(); });
+  document.getElementById('btn-history-back').addEventListener('click', function () { showScreen('home'); renderHome(); });
+  document.getElementById('btn-setup-back').addEventListener('click', function () { showScreen('home'); renderHome(); });
+  document.getElementById('btn-start-session').addEventListener('click', startSession);
+  document.getElementById('btn-pause-resume').addEventListener('click', togglePause);
+  document.getElementById('btn-skip-phase').addEventListener('click', skipPhase);
+  document.getElementById('btn-back-phase').addEventListener('click', backPhase);
+  document.getElementById('btn-cancel-session').addEventListener('click', cancelSession);
+  document.getElementById('btn-complete-done').addEventListener('click', function () { showScreen('home'); renderHome(); });
+
+  // ---------- Init ----------
+  renderHome();
+})();
+</script>
+</body>
+</html>
