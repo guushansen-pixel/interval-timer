@@ -53,3 +53,16 @@ Nutzer zum Testen auf dem Pixel 11 Pro geschickt. Stufe 2 (frei
 konfigurierbare Custom-Programme, Tabata-Style) ist geplant, aber noch
 nicht gebaut — siehe README Abschnitt "Datenmodell" für die vorbereitete
 Erweiterungsstelle.
+
+Offener Punkt für den nächsten Gerätetest (Review 2026-09-15): Die App hat
+keinen eigenen `build.ps1`-Wrapper und damit kein `FLAG_KEEP_SCREEN_ON` wie
+ice-breath/breathe-well, sondern nur `navigator.wakeLock` — das die
+Android-WebView vermutlich gar nicht unterstützt. Bitte bei einer langen
+Session (Norwegian 4x4) prüfen, ob der Bildschirm ausgeht. Falls ja: Wrapper
+nach Vorbild von `ice-breath/build.ps1` (Patch "Bildschirm wach halten")
+anlegen.
+
+Behoben im selben Review: Weiter/Zurück während einer Pause verrechneten die
+Pausendauer doppelt (Position sprang nach dem Fortsetzen), und der Verlauf
+speichert jetzt die echte Trainingszeit ohne Pausen statt der Timer-Position
+(Überspringen des Aufwärmens zählt also nicht mehr als 5 Min Training).

@@ -644,19 +644,34 @@
     return Date.now() - state.sessionStartEpoch - state.pausedAccumMs - state.manualOffsetMs;
   }
 
+  // Waehrend einer Pause laeuft currentElapsedMs() weiter (pausedAccumMs wird
+  // erst beim Fortsetzen verbucht) - Weiter/Zurueck muessen deshalb von der
+  // eingefrorenen Position ausgehen, sonst wird die Pausendauer beim
+  // Fortsetzen doppelt abgezogen.
+  function displayedElapsedMs() {
+    return state.paused ? state.frozenElapsedMs : currentElapsedMs();
+  }
+
+  function phaseIndexAt(elapsedMs) {
+    var idx = 0, lastIdx = state.phases.length - 1;
+    while (idx < lastIdx && elapsedMs >= state.cumulativeMs[idx + 1]) idx++;
+    return idx;
+  }
+
   function jumpElapsedTo(targetMs) {
-    var now = currentElapsedMs();
-    state.manualOffsetMs += (now - targetMs);
+    state.manualOffsetMs += (displayedElapsedMs() - targetMs);
+    if (state.paused) state.frozenElapsedMs = targetMs;
   }
 
   function tick() {
     if (state.sessionEnded) return;
-    if (state.paused) { renderRunning(state.currentPhaseIndex, state.frozenElapsedMs); return; }
+    // In der Pause nur anzeigen - der Cue fuer eine per Weiter/Zurueck
+    // gewechselte Phase kommt erst beim Fortsetzen.
+    if (state.paused) { renderRunning(phaseIndexAt(state.frozenElapsedMs), state.frozenElapsedMs); return; }
 
     var elapsedMs = currentElapsedMs();
-    var idx = state.currentPhaseIndex < 0 ? 0 : state.currentPhaseIndex;
+    var idx = phaseIndexAt(elapsedMs);
     var lastIdx = state.phases.length - 1;
-    while (idx < lastIdx && elapsedMs >= state.cumulativeMs[idx + 1]) idx++;
 
     if (idx !== state.currentPhaseIndex) {
       state.currentPhaseIndex = idx;
@@ -717,28 +732,27 @@
     state.frozenElapsedMs = currentElapsedMs();
     state.pauseStartedAt = Date.now();
     state.paused = true;
-    renderRunning(state.currentPhaseIndex, state.frozenElapsedMs);
+    tick();
   }
   function resumeSession() {
     if (!state.paused) return;
     state.pausedAccumMs += (Date.now() - state.pauseStartedAt);
     state.paused = false;
+    tick();
   }
   function togglePause() { if (state.paused) resumeSession(); else pauseSession(); }
 
   function skipPhase() {
     if (state.sessionEnded) return;
-    var idx = state.currentPhaseIndex;
+    var idx = phaseIndexAt(displayedElapsedMs());
     if (idx >= state.phases.length - 1) return;
     jumpElapsedTo(state.cumulativeMs[idx + 1]);
     tick();
   }
   function backPhase() {
     if (state.sessionEnded) return;
-    var idx = state.currentPhaseIndex;
-    var targetIdx = Math.max(0, idx - 1);
-    jumpElapsedTo(state.cumulativeMs[targetIdx]);
-    state.currentPhaseIndex = targetIdx - 1 < 0 ? -1 : targetIdx - 1; // erzwingt Neu-Erkennung der Phase in tick()
+    var idx = phaseIndexAt(displayedElapsedMs());
+    jumpElapsedTo(state.cumulativeMs[Math.max(0, idx - 1)]);
     tick();
   }
 
@@ -748,7 +762,11 @@
     clearInterval(state.tickTimer);
     releaseWakeLock();
 
-    var durationSec = Math.round(currentElapsedMs() / 1000);
+    // Echte Trainingszeit ohne Pausen, nicht die Timer-Position: Weiter/
+    // Zurueck verschieben nur die Position im Programm, und waehrend einer
+    // Pause (Abbruch aus der Pause heraus) laeuft keine Trainingszeit.
+    var activeEndMs = state.paused ? state.pauseStartedAt : Date.now();
+    var durationSec = Math.round((activeEndMs - state.sessionStartEpoch - state.pausedAccumMs) / 1000);
     sessions.push({
       id: 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       programId: state.program.id,
