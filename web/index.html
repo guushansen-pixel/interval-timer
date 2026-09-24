@@ -537,7 +537,56 @@
     document.querySelectorAll('.screen').forEach(function (el) { el.classList.remove('active'); });
     document.getElementById('screen-' + name).classList.add('active');
     state.screen = name;
+    if (name === 'home') leaveAwayEntry(); else pushAwayEntry();
   }
+
+  // ---------- Zurueck-Taste / Zurueck-Geste ----------
+  // Die WebView-Activity geht bei Zurueck per webView.goBack() in der
+  // History zurueck und schliesst die App erst, wenn es keinen Eintrag mehr
+  // gibt. Ohne eigenen Eintrag beendete Zurueck deshalb mitten im Training
+  // die App, und die laufende Einheit war weg.
+  // Es gibt hoechstens EINEN Eintrag "weg vom Home" (wie bei ice-breath/
+  // breathe-well): mehrere wuerden bedeuten, dass man auf dem Home noch
+  // mehrfach Zurueck druecken muss, bis die App schliesst.
+  var awayEntry = false;      // liegt unser Eintrag gerade in der History?
+  var ignoreNextPop = false;  // popstate aus unserem eigenen history.back()
+
+  function pushAwayEntry() {
+    if (awayEntry) return;
+    history.pushState({ it: 'away' }, '');
+    awayEntry = true;
+  }
+  function leaveAwayEntry() {
+    if (!awayEntry) return;
+    awayEntry = false;
+    ignoreNextPop = true;
+    history.back();
+  }
+
+  window.addEventListener('popstate', function () {
+    if (ignoreNextPop) { ignoreNextPop = false; return; }
+    awayEntry = false;   // der Eintrag ist durch das Zurueck verbraucht
+
+    // Offene Rueckfrage: Zurueck heisst "Nein" - Bildschirm bleibt.
+    var backdrop = document.getElementById('confirm-backdrop');
+    if (backdrop.classList.contains('active')) {
+      document.getElementById('confirm-no').click();
+      if (state.screen !== 'home') pushAwayEntry();
+      return;
+    }
+    // Laufendes Training nie ohne Rueckfrage beenden. Der Eintrag wird
+    // sofort neu angelegt, damit ein "Nein" (oder ein zweites Zurueck)
+    // im Training bleibt; "Ja" fuehrt ueber completeSession() zum Home.
+    if (state.screen === 'running' && !state.sessionEnded) {
+      pushAwayEntry();
+      cancelSession();
+      return;
+    }
+    if (state.screen !== 'home') {
+      showScreen('home');
+      renderHome();
+    }
+  });
 
   // ---------- Home ----------
   function renderHome() {

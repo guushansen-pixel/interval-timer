@@ -20,7 +20,7 @@ cd "D:\claude code projects\apk-builder"
 .\new-app.ps1 -Name IntervalTimer -PackageId com.daniel.intervaltimer `
               -WebRoot "D:\claude code projects\interval-timer\web" `
               -Icon "D:\claude code projects\interval-timer\icon.xml" `
-              -IconBackground "#1D2530" `
+              -IconBackground "#1D2530" -KeepScreenOn `
               -VersionName "1.0" -VersionCode <hochzaehlen> -Force
 .\build-apk.ps1 -App IntervalTimer          # Debug
 .\build-apk.ps1 -App IntervalTimer -Release # signiert, fuer echten Gebrauch
@@ -54,13 +54,14 @@ konfigurierbare Custom-Programme, Tabata-Style) ist geplant, aber noch
 nicht gebaut — siehe README Abschnitt "Datenmodell" für die vorbereitete
 Erweiterungsstelle.
 
-Offener Punkt für den nächsten Gerätetest (Review 2026-09-15): Die App hat
-keinen eigenen `build.ps1`-Wrapper und damit kein `FLAG_KEEP_SCREEN_ON` wie
-ice-breath/breathe-well, sondern nur `navigator.wakeLock` — das die
-Android-WebView vermutlich gar nicht unterstützt. Bitte bei einer langen
-Session (Norwegian 4x4) prüfen, ob der Bildschirm ausgeht. Falls ja: Wrapper
-nach Vorbild von `ice-breath/build.ps1` (Patch "Bildschirm wach halten")
-anlegen.
+Behoben 2026-09-24 (im Browser per Playwright verifiziert, am Gerät noch
+offen): Zurück schloss die App auch mitten im Training. Jetzt gibt es einen
+History-Eintrag "weg vom Home" mit Abbrechen-Rückfrage im Training (Details
+README "Zurück-Taste und -Geste"). Für die Wischgeste und den wachen
+Bildschirm braucht es apk-builder ab 2026-09-24: Build-Befehl oben hat
+deshalb `-KeepScreenOn`, und das Template registriert den
+Predictive-Back-Callback. Am Gerät prüfen: Zurück-Wischgeste im Training
+(muss die Rückfrage zeigen) und ob der Bildschirm über Norwegian 4x4 anbleibt.
 
 Behoben im selben Review: Weiter/Zurück während einer Pause verrechneten die
 Pausendauer doppelt (Position sprang nach dem Fortsetzen), und der Verlauf

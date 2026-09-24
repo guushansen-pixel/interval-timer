@@ -11,13 +11,15 @@ cd "D:\claude code projects\apk-builder"
 .\new-app.ps1 -Name IntervalTimer -PackageId com.daniel.intervaltimer `
               -WebRoot "D:\claude code projects\interval-timer\web" `
               -Icon "D:\claude code projects\interval-timer\icon.xml" `
-              -IconBackground "#1D2530" `
+              -IconBackground "#1D2530" -KeepScreenOn `
               -VersionName "1.0" -VersionCode 1 -Force
 .\build-apk.ps1 -App IntervalTimer -Release
 ```
 
 `-VersionCode` bei jeder Auslieferung hochzählen. Kein `-Online`-Schalter -
-die App bekommt bewusst keine INTERNET-Berechtigung.
+die App bekommt bewusst keine INTERNET-Berechtigung. `-KeepScreenOn` (seit
+apk-builder 2026-09-24) hält den Bildschirm über die ganze Einheit an -
+`navigator.wakeLock` allein reicht in der Android-WebView nicht.
 
 Das Icon liegt bewusst **neben** `web\`, nicht darin - sonst wanderte es
 zusätzlich als Web-Asset in die APK.
@@ -81,6 +83,24 @@ Alle drei Signalkanäle (Ton/Vibration/Bildschirm-Flash) sind in den
 Einstellungen einzeln schaltbar. Die Vibrationsintensität steuert nur
 Muster/Dauer, nicht die Amplitude - das kann die Vibration API schlicht
 nicht.
+
+## Zurück-Taste und -Geste
+
+Ohne eigenen History-Eintrag schloss Zurück die App sofort, auch mitten im
+Training. Jetzt legt `showScreen()` beim Verlassen des Home genau **einen**
+Eintrag an (`pushAwayEntry`) und baut ihn bei der Rückkehr per
+`history.back()` wieder ab (`leaveAwayEntry`, das dadurch ausgelöste
+`popstate` wird ignoriert). Ein echtes Zurück landet im `popstate`-Handler:
+
+- **Training läuft** → Abbrechen-Rückfrage, das Training läuft weiter.
+  „Nein“ oder ein zweites Zurück schließen nur die Rückfrage.
+- **Rückfrage offen** (auch „Verlauf löschen“) → wie „Nein“.
+- **Setup, Einstellungen, Verlauf, Fertig** → zurück zum Home.
+- **Home** → kein Eintrag mehr da, die App schließt.
+
+Die Wischgeste (Predictive Back) erreicht die Web-App erst, seit das
+apk-builder-Template einen `OnBackInvokedCallback` registriert
+(2026-09-24). Ältere Builds müssen neu erzeugt werden.
 
 ## Verlauf
 
