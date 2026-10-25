@@ -108,3 +108,10 @@ apk-builder-Template einen `OnBackInvokedCallback` registriert
 Dauer, `completedFully`). Gesamtsumme und Liste werden beim Anzeigen aus
 dem Log berechnet, nie separat gespeichert - eine einzige Quelle der
 Wahrheit.
+
+## Versionen
+
+- **1.2** (versionCode 7, 2026-10-25): Edge-to-Edge - `.screen` und die
+  Laufansicht polstern mit `var(--sat)` / `var(--sab)`, die Werte setzt das
+  apk-builder-Template (ab targetSdk 35 liegt die App hinter den
+  Systemleisten, `env(safe-area-inset-*)` liefert im WebView 0).
